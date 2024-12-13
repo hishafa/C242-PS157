@@ -2,6 +2,7 @@ package com.example.capstone.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -26,12 +27,14 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Cek status login
-        checkLoginStatus()
-
+        // Inisialisasi binding terlebih dahulu
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Cek status login sebelum melanjutkan
+        checkLoginStatus()
+
+        // Setup listener untuk tombol dan observasi ViewModel
         setupListeners()
         observeViewModel()
     }
@@ -42,6 +45,7 @@ class LoginActivity : AppCompatActivity() {
         if (isLoggedIn) {
             // Jika sudah login, langsung navigasi ke MainActivity
             val intent = Intent(this, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
         }
@@ -64,6 +68,8 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            // Tampilkan loading sebelum memulai proses login
+            showLoading(true)
             authViewModel.login(email, password)
         }
 
@@ -75,10 +81,12 @@ class LoginActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         authViewModel.loginResult.observe(this) { response ->
+            showLoading(false)
             handleLoginResponse(response)
         }
 
         authViewModel.error.observe(this) { errorMessage ->
+            showLoading(false)
             handleError(errorMessage)
         }
     }
@@ -91,12 +99,13 @@ class LoginActivity : AppCompatActivity() {
 
             // Simpan status login di SharedPreferences
             val sharedPref = getSharedPreferences("USER_PREF", MODE_PRIVATE)
-            val editor = sharedPref.edit()
-            editor.putBoolean("IS_LOGGED_IN", true)
-            editor.apply()
+            sharedPref.edit()
+                .putBoolean("IS_LOGGED_IN", true)
+                .apply()
 
             // Navigasi ke MainActivity
             val intent = Intent(this, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
         }
@@ -108,5 +117,15 @@ class LoginActivity : AppCompatActivity() {
 
     private fun isValidEmail(email: String): Boolean {
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        if (isLoading) {
+            binding.progressBar.visibility = View.VISIBLE
+            binding.capstoneLoginButton.isEnabled = false
+        } else {
+            binding.progressBar.visibility = View.GONE
+            binding.capstoneLoginButton.isEnabled = true
+        }
     }
 }

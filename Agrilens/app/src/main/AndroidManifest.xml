@@ -43,5 +43,11 @@
             android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize|stateHidden" />
+
+        <!-- Backup Rules (Opsional, untuk menyimpan data user) -->
+        <meta-data
+            android:name="android.app.lib_name"
+            android:value="lib_name" />
+
     </application>
 </manifest>

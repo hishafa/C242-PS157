@@ -19,7 +19,7 @@ class SplashActivity : AppCompatActivity() {
         // Simulasi delay splash screen
         binding.root.postDelayed({
             val sharedPref = getSharedPreferences("USER_PREF", MODE_PRIVATE)
-            val isLoggedIn = sharedPref.getBoolean("IS_LOGGED_IN", false) // Menggunakan flag login
+            val isLoggedIn = sharedPref.getBoolean("IS_LOGGED_IN", false) // Periksa status login
 
             if (isLoggedIn) {
                 // Jika sudah login, arahkan ke MainActivity

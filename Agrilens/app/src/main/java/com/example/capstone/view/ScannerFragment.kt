@@ -1,24 +1,22 @@
 package com.example.capstone.view
 
-import android.app.Activity
-import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
-import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
-import com.example.capstone.model.ClassificationResult
-import com.example.capstone.model.ImageClassifierHelper
 import com.example.capstone.R
 import com.example.capstone.databinding.FragmentScannerBinding
+import com.example.capstone.model.ClassificationResult
+import com.example.capstone.model.ImageClassifierHelper
+import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
+import java.io.InputStream
 
 class ScannerFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
 
@@ -27,62 +25,58 @@ class ScannerFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
 
     private lateinit var imageClassifierHelper: ImageClassifierHelper
     private var selectedImageUri: Uri? = null
-    private val PICK_IMAGE_REQUEST = 1
+
+    // ActivityResult API untuk menggantikan startActivityForResult
+    private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            selectedImageUri = uri
+            try {
+                // Copy URI ke penyimpanan internal
+                val safeUri = copyUriToInternalStorage(uri) ?: uri
+
+                // Tampilkan gambar pada ImageView
+                val bitmap = loadBitmapFromUri(safeUri)
+                if (bitmap != null) {
+                    binding.ivScanImage.setImageBitmap(bitmap)
+                    binding.btnAnalyze.isEnabled = true
+                } else {
+                    Toast.makeText(requireContext(), "Failed to load image.", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Timber.e("Error loading image: ${e.message}")
+                Toast.makeText(requireContext(), "Error loading image.", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(requireContext(), "No image selected", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
+        inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?
+    ): android.view.View {
         _binding = FragmentScannerBinding.inflate(inflater, container, false)
         return binding.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(view: android.view.View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize the TensorFlow Lite Classifier
+        // Inisialisasi TensorFlow Lite Classifier
         imageClassifierHelper = ImageClassifierHelper(requireContext())
 
-        // Button to open gallery
+        // Tombol untuk membuka galeri
         binding.btnOpenGallery.setOnClickListener { openGallery() }
 
-        // Button to start analysis
+        // Tombol untuk memulai analisis
         binding.btnAnalyze.setOnClickListener { analyzeImage() }
 
-        // Initially disable the analyze button until an image is selected
+        // Nonaktifkan tombol analisis hingga gambar dipilih
         binding.btnAnalyze.isEnabled = false
     }
 
     private fun openGallery() {
-        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-        startActivityForResult(intent, PICK_IMAGE_REQUEST)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK) {
-            selectedImageUri = data?.data
-            if (selectedImageUri != null) {
-                try {
-                    // Copy URI to internal storage
-                    val safeUri = copyUriToInternalStorage(selectedImageUri!!) ?: selectedImageUri
-
-                    // Display the image in ImageView
-                    val bitmap = MediaStore.Images.Media.getBitmap(
-                        requireContext().contentResolver,
-                        safeUri
-                    )
-                    binding.ivScanImage.setImageBitmap(bitmap)
-
-                    // Enable analyze button
-                    binding.btnAnalyze.isEnabled = true
-                } catch (e: IOException) {
-                    Log.e("ScannerFragment", "Error loading image: ${e.message}")
-                    Toast.makeText(requireContext(), "Failed to load image", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(requireContext(), "No image selected", Toast.LENGTH_SHORT).show()
-            }
-        }
+        // Luncurkan galeri menggunakan ActivityResult API
+        galleryLauncher.launch("image/*")
     }
 
     private fun analyzeImage() {
@@ -92,24 +86,70 @@ class ScannerFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
         }
 
         try {
-            // Copy URI to internal storage
-            val safeUri = copyUriToInternalStorage(selectedImageUri!!) ?: selectedImageUri
+            // Salin URI ke penyimpanan internal
+            val safeUri = copyUriToInternalStorage(selectedImageUri!!) ?: selectedImageUri!!
 
-            // Convert URI to Bitmap
-            val bitmap = MediaStore.Images.Media.getBitmap(
-                requireContext().contentResolver,
-                safeUri
-            )
+            // Konversi URI ke Bitmap
+            val bitmap = loadBitmapFromUri(safeUri)
 
-            // Send the image to TensorFlow Lite for analysis
-            imageClassifierHelper.classifyBitmap(bitmap, this)
-        } catch (e: IOException) {
-            Log.e("ScannerFragment", "Error analyzing image: ${e.message}")
-            Toast.makeText(requireContext(), "Failed to analyze image", Toast.LENGTH_SHORT).show()
+            // Kirim gambar ke TensorFlow Lite untuk analisis
+            if (bitmap != null) {
+                imageClassifierHelper.classifyBitmap(bitmap, this)
+            } else {
+                Toast.makeText(requireContext(), "Error processing image.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Timber.e("Error analyzing image: ${e.message}")
+            Toast.makeText(requireContext(), "Error analyzing image.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Implementation of onResult from ClassifierListener
+    private fun loadBitmapFromUri(uri: Uri): Bitmap? {
+        return try {
+            val inputStream: InputStream? = requireContext().contentResolver.openInputStream(uri)
+            BitmapFactory.decodeStream(inputStream)
+        } catch (e: Exception) {
+            Timber.e("Error loading bitmap: ${e.message}")
+            null
+        }
+    }
+
+    private fun copyUriToInternalStorage(uri: Uri): Uri? {
+        return try {
+            val fileName = getFileNameFromUri(uri)
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val file = File(requireContext().cacheDir, fileName)
+            val outputStream = FileOutputStream(file)
+
+            inputStream?.use { input ->
+                outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            Uri.fromFile(file)
+        } catch (e: Exception) {
+            Timber.e("Error copying URI to internal storage: ${e.message}")
+            null
+        }
+    }
+
+    private fun getFileNameFromUri(uri: Uri): String {
+        var fileName: String? = null
+        val projection = arrayOf(OpenableColumns.DISPLAY_NAME)
+        val cursor = requireContext().contentResolver.query(uri, projection, null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val columnIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (columnIndex != -1) {
+                    fileName = it.getString(columnIndex)
+                } else {
+                    Timber.e("DISPLAY_NAME column not found.")
+                }
+            }
+        }
+        return fileName ?: "unknown_file"
+    }
+
     override fun onResult(result: ClassificationResult) {
         val bundle = Bundle().apply {
             putString("RESULT_TITLE", result.title)
@@ -121,28 +161,9 @@ class ScannerFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
         findNavController().navigate(R.id.action_scannerFragment_to_resultFragment, bundle)
     }
 
-    // Implementation of onError from ClassifierListener
     override fun onError(error: String) {
-        Log.e("ScannerFragment", "Classification error: $error")
+        Timber.e("Classification error: $error")
         Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun copyUriToInternalStorage(uri: Uri): Uri? {
-        return try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val file = File(requireContext().cacheDir, "temp_image.jpg")
-            val outputStream = FileOutputStream(file)
-
-            inputStream?.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
-            }
-            Uri.fromFile(file)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
     }
 
     override fun onDestroyView() {

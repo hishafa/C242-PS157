@@ -44,7 +44,6 @@ class BookmarkAdapter(
         // Set delete button click listener
         holder.deleteButton.setOnClickListener {
             onDeleteClickListener?.invoke(bookmark)
-            removeBookmarkFromList(position)
         }
     }
 
@@ -60,11 +59,15 @@ class BookmarkAdapter(
         onDeleteClickListener = listener
     }
 
-    // Remove a bookmark from the list and notify the adapter
-    private fun removeBookmarkFromList(position: Int) {
-        if (position >= 0 && position < bookmarks.size) {
+    // Method untuk menghapus bookmark dari daftar lokal dengan animasi
+    fun removeBookmark(bookmark: Bookmark) {
+        val position = bookmarks.indexOf(bookmark)
+        if (position >= 0) {
             bookmarks.removeAt(position)
             notifyItemRemoved(position)
+
+            // Perbarui elemen yang ada di bawah item yang dihapus
+            notifyItemRangeChanged(position, bookmarks.size - position)
         }
     }
 

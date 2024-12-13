@@ -2,9 +2,11 @@ package com.example.capstone.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import com.example.capstone.MainActivity
 import com.example.capstone.data.repository.AuthRepository
 import com.example.capstone.data.retrofit.ApiClient
 import com.example.capstone.databinding.ActivityRegisterBinding
@@ -58,16 +60,20 @@ class RegisterActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            // Tampilkan loading sebelum memulai proses registrasi
+            showLoading(true)
             authViewModel.register(name, email, password, confirmPassword)
         }
     }
 
     private fun observeViewModel() {
         authViewModel.registerResult.observe(this) { response ->
+            showLoading(false)
             handleRegisterResponse(response)
         }
 
         authViewModel.error.observe(this) { errorMessage ->
+            showLoading(false)
             handleError(errorMessage)
         }
     }
@@ -76,10 +82,17 @@ class RegisterActivity : AppCompatActivity() {
         if (response.error == true) {
             Toast.makeText(this, response.message, Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "Registration successful! Please login to continue.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Registration successful! Logging in automatically...", Toast.LENGTH_SHORT).show()
 
-            // Navigasi ke LoginActivity
-            val intent = Intent(this, LoginActivity::class.java)
+            // Simpan status login di SharedPreferences
+            val sharedPref = getSharedPreferences("USER_PREF", MODE_PRIVATE)
+            sharedPref.edit()
+                .putBoolean("IS_LOGGED_IN", true)
+                .apply()
+
+            // Navigasi ke MainActivity
+            val intent = Intent(this, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
         }
@@ -91,5 +104,15 @@ class RegisterActivity : AppCompatActivity() {
 
     private fun isValidEmail(email: String): Boolean {
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        if (isLoading) {
+            binding.progressBar.visibility = View.VISIBLE
+            binding.capstoneRegisterButton.isEnabled = false
+        } else {
+            binding.progressBar.visibility = View.GONE
+            binding.capstoneRegisterButton.isEnabled = true
+        }
     }
 }

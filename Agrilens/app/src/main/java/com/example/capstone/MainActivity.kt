@@ -2,6 +2,7 @@ package com.example.capstone
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.NavController
@@ -9,6 +10,7 @@ import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.example.capstone.databinding.ActivityMainBinding
 import com.example.capstone.ui.auth.LoginActivity
+import timber.log.Timber
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -17,22 +19,25 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Cek status login sebelum melanjutkan
-        checkLoginStatus()
-
+        // Inisialisasi binding
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Cek status login sebelum melanjutkan
+        showLoading(true)
+        checkLoginStatus()
 
         // Setup Navigation
         setupNavigation()
 
         // Handle BottomNavigation actions
         handleBottomNavigation()
+        showLoading(false)
     }
 
     private fun checkLoginStatus() {
-        val sharedPref = getSharedPreferences("USER_PREF", MODE_PRIVATE)
-        val isLoggedIn = sharedPref.getBoolean("IS_LOGGED_IN", false)
+        val sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE)
+        val isLoggedIn = sharedPreferences.getBoolean("is_logged_in", false)
         if (!isLoggedIn) {
             // Jika belum login, arahkan ke LoginActivity
             val intent = Intent(this, LoginActivity::class.java)
@@ -52,7 +57,8 @@ class MainActivity : AppCompatActivity() {
             binding.bottomNavigation.setupWithNavController(navController)
         } else {
             // Log error if NavHostFragment is not found
-            throw IllegalStateException("NavHostFragment not found in MainActivity")
+            Timber.tag("MainActivity").e("NavHostFragment not found.")
+            Toast.makeText(this, "Navigation error occurred.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -62,14 +68,18 @@ class MainActivity : AppCompatActivity() {
                 R.id.homeFragment -> {
                     if (navController.currentDestination?.id != R.id.homeFragment) {
                         // Navigate to HomeFragment only if not already on it
+                        showLoading(true)
                         navController.navigate(R.id.homeFragment)
+                        showLoading(false)
                     }
                     true
                 }
                 R.id.scannerFragment -> {
                     if (navController.currentDestination?.id != R.id.scannerFragment) {
                         // Navigate to ScannerFragment only if not already on it
+                        showLoading(true)
                         navController.navigate(R.id.scannerFragment)
+                        showLoading(false)
                     }
                     true
                 }
@@ -94,10 +104,11 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    @Suppress("DEPRECATION")
     private fun performLogout() {
-        // Clear SharedPreferences
-        val sharedPref = getSharedPreferences("USER_PREF", MODE_PRIVATE)
-        sharedPref.edit().clear().apply()
+        // Logout logic using SharedPreferences
+        val sharedPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE)
+        sharedPreferences.edit().putBoolean("is_logged_in", false).apply()
 
         // Show a logout confirmation toast
         Toast.makeText(this, "You have successfully logged out.", Toast.LENGTH_SHORT).show()
@@ -106,6 +117,21 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        if (::binding.isInitialized) {
+            if (isLoading) {
+                binding.progressBar.visibility = View.VISIBLE
+                binding.loadingOverlay.visibility = View.VISIBLE
+            } else {
+                binding.progressBar.visibility = View.GONE
+                binding.loadingOverlay.visibility = View.GONE
+            }
+        } else {
+            Timber.e("Binding not initialized")
+        }
     }
 }

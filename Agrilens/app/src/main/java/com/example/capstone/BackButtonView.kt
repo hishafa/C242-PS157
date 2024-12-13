@@ -2,8 +2,8 @@ package com.example.capstone
 
 import android.content.Context
 import android.util.AttributeSet
+import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.appcompat.widget.AppCompatImageButton
-import android.app.Activity
 
 class BackButtonView @JvmOverloads constructor(
     context: Context,
@@ -19,10 +19,9 @@ class BackButtonView @JvmOverloads constructor(
         // Set content description for accessibility
         contentDescription = "Back"
 
-        // Set default click behavior to go back to the previous screen
+        // Set default click behavior using OnBackPressedDispatcher
         setOnClickListener {
-            (context as? Activity)?.onBackPressed()
+            (context as? OnBackPressedDispatcherOwner)?.onBackPressedDispatcher?.onBackPressed()
         }
     }
 }
-

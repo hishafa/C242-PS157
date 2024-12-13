@@ -1,23 +1,26 @@
 package com.example.capstone.view
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 import com.example.capstone.R
 import com.example.capstone.databinding.FragmentResultBinding
-import java.io.File
-import java.io.FileOutputStream
+import timber.log.Timber
+import java.io.InputStream
 
 class ResultFragment : Fragment() {
 
-    private var isBookmarked = false // Bookmark status
+    private var isBookmarked = false
     private var _binding: FragmentResultBinding? = null
     private val binding get() = _binding!!
 
@@ -26,18 +29,24 @@ class ResultFragment : Fragment() {
     ): View {
         _binding = FragmentResultBinding.inflate(inflater, container, false)
 
+        // Setup back press callback
+        setupOnBackPressed()
+
         // Display the classification result
         displayResult()
 
         // Setup bookmark button
         setupBookmarkButton()
 
-        // Back button to return
-        binding.btnBack.setOnClickListener {
-            requireActivity().onBackPressed()
-        }
-
         return binding.root
+    }
+
+    private fun setupOnBackPressed() {
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                requireActivity().supportFragmentManager.popBackStack()
+            }
+        })
     }
 
     private fun displayResult() {
@@ -46,26 +55,17 @@ class ResultFragment : Fragment() {
         val resultTreatment = arguments?.getString("RESULT_TREATMENT") ?: "No treatment available."
         val imageUriString = arguments?.getString("IMAGE_URI")
 
-        // Set Header Title
         binding.tvResultTitle.text = resultTitle
-
-        // Set Diagnosis
         binding.tvDiagnosis.text = diagnosis
-
-        // Set Treatment Description
         binding.tvResultDescription.text = resultTreatment
 
-        // Display the scanned image
+        // Load and display image
         if (!imageUriString.isNullOrEmpty()) {
-            val originalUri = Uri.parse(imageUriString)
-            val safeUri = copyUriToInternalStorage(originalUri) ?: originalUri
-
-            try {
-                val inputStream = requireContext().contentResolver.openInputStream(safeUri)
-                val drawable = Drawable.createFromStream(inputStream, safeUri.toString())
-                binding.ivScanImage.setImageDrawable(drawable)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            val imageUri = Uri.parse(imageUriString)
+            val bitmap = loadBitmapFromUri(imageUri)
+            if (bitmap != null) {
+                binding.ivScanImage.setImageBitmap(bitmap)
+            } else {
                 binding.ivScanImage.setImageResource(R.drawable.ic_placeholder_image)
                 Toast.makeText(requireContext(), "Failed to load image.", Toast.LENGTH_SHORT).show()
             }
@@ -73,7 +73,7 @@ class ResultFragment : Fragment() {
             binding.ivScanImage.setImageResource(R.drawable.ic_placeholder_image)
         }
 
-        // Check if this result is already bookmarked
+        // Update bookmark state
         isBookmarked = checkIfBookmarked(resultTitle, diagnosis)
         updateBookmarkButton()
     }
@@ -95,6 +95,7 @@ class ResultFragment : Fragment() {
         }
     }
 
+    @SuppressLint("MutatingSharedPrefs")
     private fun saveToBookmark(title: String, diagnose: String, imageUri: String, treatment: String) {
         val sharedPreferences = requireContext().getSharedPreferences("bookmarks", Context.MODE_PRIVATE)
         val editor = sharedPreferences.edit()
@@ -111,6 +112,7 @@ class ResultFragment : Fragment() {
         }
     }
 
+    @SuppressLint("MutatingSharedPrefs")
     private fun removeFromBookmark(title: String, diagnose: String) {
         val sharedPreferences = requireContext().getSharedPreferences("bookmarks", Context.MODE_PRIVATE)
         val editor = sharedPreferences.edit()
@@ -131,6 +133,7 @@ class ResultFragment : Fragment() {
         return bookmarkSet.any { it.startsWith("$title|$diagnose|") }
     }
 
+    @SuppressLint("SetTextI18n")
     private fun updateBookmarkButton() {
         if (isBookmarked) {
             binding.btnBookmark.text = "Remove from Bookmark"
@@ -143,20 +146,12 @@ class ResultFragment : Fragment() {
         }
     }
 
-    private fun copyUriToInternalStorage(uri: Uri): Uri? {
+    private fun loadBitmapFromUri(uri: Uri): Bitmap? {
         return try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val file = File(requireContext().cacheDir, "temp_image.jpg")
-            val outputStream = FileOutputStream(file)
-
-            inputStream?.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
-                }
-            }
-            Uri.fromFile(file)
+            val inputStream: InputStream? = requireContext().contentResolver.openInputStream(uri)
+            BitmapFactory.decodeStream(inputStream)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Timber.tag("ResultFragment").e("Error loading image: ${e.message}")
             null
         }
     }

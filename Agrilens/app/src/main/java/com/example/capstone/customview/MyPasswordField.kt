@@ -90,9 +90,21 @@ class MyPasswordField @JvmOverloads constructor(
     private fun validatePasswordLength(input: CharSequence?) {
         // Menampilkan error jika password kurang dari 8 karakter
         if (input != null && input.length < 8) {
-            error = context.getString(R.string.invalid_password)
+            if (error == null) {
+                error = context.getString(R.string.invalid_password)
+            }
         } else {
             error = null
+        }
+    }
+
+    override fun setError(error: CharSequence?, icon: Drawable?) {
+        super.setError(error, null) // Tidak menggunakan ikon error bawaan
+        // Menyesuaikan posisi error agar tidak menutupi ikon mata
+        if (error != null) {
+            setCompoundDrawablesWithIntrinsicBounds(
+                lockImage, null, if (showPassword) eyeImage else eyeOffImage, null
+            )
         }
     }
 }
