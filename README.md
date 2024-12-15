@@ -5,6 +5,8 @@ AgriLens is an application designed to detect plant diseases through images usin
 ## APK Download
 You can download the latest version of the AgriLens application [here](https://bit.ly/Agrilens).
 
+If you wanna to see the details about the App you can visit this repository [here] https://github.com/upiwiwiw/Agrilens-by-Luthfi
+
 ## Features
 - Upload or capture images of plants.
 - Get instant disease detection results.
